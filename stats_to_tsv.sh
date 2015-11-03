@@ -19,6 +19,7 @@
 #
 # Created by Martin Pollard on 21/10/2015.
 #
+
 (echo -e "library\tfiltered_reads"; grep -H 'SN'$'\t''sequences:' *.stats | sed -e 's/:/'$'\t''/g' -e 's/\.stats//g' | cut -f 1,5) > total.list
 (echo -e "library\tdup_reads"; grep -H 'reads duplicated:' *.stats | sed -e 's/:/'$'\t''/g' -e 's/\.stats//g' | cut -f 1,5) > dup.list
 (echo -e "library\tmapped_reads"; grep -H 'reads mapped:' *.stats | sed -e 's/:/'$'\t''/g' -e 's/\.stats//g' | cut -f 1,5) > mapped.list
@@ -26,8 +27,10 @@
 (echo -e "library\tproperly_paired_reads"; grep -H 'reads properly paired:' *.stats | sed -e 's/:/'$'\t''/g' -e 's/\.stats//g' | cut -f 1,5) > properlypaired.list
 (echo -e "library\tpaired_reads"; grep -H 'reads paired:' *.stats | sed -e 's/:/'$'\t''/g' -e 's/\.stats//g' | cut -f 1,5) > paired.list
 (echo -e "library\terror_rate"; grep -H 'error rate' *.stats | sed -e 's/:/'$'\t''/g' -e 's/\.stats//g' | cut -f 1,5) > error.list
+(echo -ne "library\tins_total\tdel_total";grep -H '^ID' *.stats | sed -e 's/:/'$'\t''/g'  -e 's/\.stats//g' | awk 'BEGIN{library=""; OFS="\t"}{if ($1 != library){print library, INS, DEL; INS=0; DEL=0;library=$1} INS += $4; DEL+=$5}END{print library,INS, DEL}') >ins_del.list
 
 join <(join total.list dup.list) <(join mapped.list mappedpaired.list) > tmp.list
-join <(join tmp.list properlypaired.list) <(join paired.list error.list) > output.list
+join <(join tmp.list properlypaired.list) <(join paired.list error.list) > tmp2.list
+join tmp2.list ins_del.list > output.list
 
-Rscript --vanilla
+Rscript --vanilla < plot.R
