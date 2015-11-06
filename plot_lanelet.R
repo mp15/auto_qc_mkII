@@ -17,6 +17,11 @@
 # Created by Martin Pollard on 21/10/2015.
 #
 
+#conf <- read.table('autoqc.conf', header=TRUE)
+#conf <- dcast(conf, row~value, fill=0)
+
+
+
 dat <- read.table('output.list', header=TRUE, comment.char="~")
 dat$error_rate <-dat$error_rate *100
 dat$dup_rate <- dat$dup_reads / dat$filtered_reads * 100
@@ -47,4 +52,10 @@ dat$auto_qc <- ifelse(
 )
  > 0, "WARNING","PASS"))
 summary(dat)
-dat[,c('library','auto_qc')]
+
+summary(as.factor(dat$auto_qc))
+summary(as.factor(dat$auto_qc_error_rate))
+summary(as.factor(dat$auto_qc_dup_rate))
+summary(as.factor(dat$auto_qc_map_rate))
+summary(as.factor(dat$auto_qc_properpair_rate))
+summary(as.factor(dat$auto_qc_indel_ratio))
