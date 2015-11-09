@@ -96,8 +96,8 @@ args <- commandArgs(TRUE)
 
 input_list <- readLines(args[1])
 
-dat <- lapply(input_list, load_stat)
-
+dat <- do.call(rbind,lapply(input_list, load_stat))
+dat <- apply(dat, 2, as.numeric)
 
 dat$error_rate <-dat$'error rate:' *100
 dat$dup_rate <- dat$dup_reads / dat$filtered_reads * 100
