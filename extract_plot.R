@@ -92,9 +92,11 @@ load_stat <- function(lanelet_file)
     )]
 }
 
-input_list <- readLines('../pomak.list')
+args <- commandArgs(TRUE)
 
-dat <- mclapply(input_list, load_stat)
+input_list <- readLines(args[1])
+
+dat <- lapply(input_list, load_stat)
 
 
 dat$error_rate <-dat$'error rate:' *100
