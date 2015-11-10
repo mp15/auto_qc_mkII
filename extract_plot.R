@@ -30,8 +30,11 @@ load_stat <- function(lanelet_file)
     
     bamcheck$data$SN$lanelet <- rep(lanelet,nrow(bamcheck$data$SN))
     extract <-dcast(bamcheck$data$SN, lanelet~variable)
-    extract[,c(
-    'filtered sequences:',
+    insdel <- cbind(sum(bamcheck$data$ID['insertion.count']),sum(bamcheck$data$ID['deletion.count']))
+    colnames(insdel) <- c('insertion.count','deletion.count')
+
+    cbind(extract[,c(
+    'sequences:',
     'reads duplicated:',
     'reads mapped:',
     'reads paired:',
@@ -89,7 +92,7 @@ load_stat <- function(lanelet_file)
     'C.percent.total.mean.baseline.deviation:',
     'G.percent.total.mean.baseline.deviation:',
     'T.percent.total.mean.baseline.deviation:'
-    )]
+    )],insdel)
 }
 
 args <- commandArgs(TRUE)
@@ -97,26 +100,52 @@ args <- commandArgs(TRUE)
 input_list <- readLines(args[1])
 
 dat <- do.call(rbind,lapply(input_list, load_stat))
-dat <- apply(dat, 2, as.numeric)
+dat <- data.frame(apply(dat, 2, as.numeric))
 
-dat$error_rate <-dat$'error rate:' *100
-dat$dup_rate <- dat$dup_reads / dat$filtered_reads * 100
-dat$map_rate <- dat$mapped_reads / dat$filtered_reads * 100
-dat$properpair_rate <- dat$properly_paired_reads / dat$filtered_reads * 100
-dat$indel_ratio <-dat$ins_total / dat$del_total
-dat$map_minus_dup_coverage <- ( (dat$mapped_reads - dat$dup_reads) * 151 ) / 3000000000
-dat$auto_qc_error_rate <- ifelse( dat$error_rate < 2,ifelse(dat$error_rate < 1,"PASS","WARNING"),"FAIL")
-dat$auto_qc_dup_rate <- ifelse( dat$dup_rate < 20,ifelse(dat$dup_rate < 15,"PASS","WARNING"),"FAIL")
-dat$auto_qc_map_rate <- ifelse( dat$map_rate > 90,ifelse(dat$map_rate > 95,"PASS","WARNING"),"FAIL")
-dat$auto_qc_properpair_rate <- ifelse( dat$properpair_rate > 80,ifelse(dat$properpair_rate > 90,"PASS","WARNING"),"FAIL")
-dat$auto_qc_indel_ratio <- ifelse( ((dat$indel_ratio > 1.105) + (dat$indel_ratio < 0.450)) > 0, "FAIL", ifelse(((dat$indel_ratio > 0.825) + (dat$indel_ratio < 0.675)) > 0, "WARNING", "PASS"))
-dat$auto_qc <- ifelse(
+qc_levels <- c('PASS','WARNING','FAIL')
+
+dat$dup_rate <- dat$reads.duplicated. / dat$sequences.
+dat$map_rate <- dat$reads.mapped. / dat$sequences.
+dat$properpair_rate <- dat$reads.properly.paired. / dat$sequences.
+dat$indel_ratio <-dat$insertion.count / dat$deletion.count
+dat$map_minus_dup_coverage <- ( (dat$reads.mapped. - dat$reads.duplicated.) * 151 ) / 3000000000
+dat$auto_qc_error_rate <- factor(ifelse( dat$error.rate. < 0.02,ifelse(dat$error.rate. < 0.01,"PASS","WARNING"),"FAIL"), qc_levels)
+dat$auto_qc_dup_rate <- factor(ifelse( dat$dup_rate < .20,ifelse(dat$dup_rate < .15,"PASS","WARNING"),"FAIL"), qc_levels)
+dat$auto_qc_map_rate <- factor(ifelse( dat$map_rate > .90,ifelse(dat$map_rate > .95,"PASS","WARNING"),"FAIL"), qc_levels)
+dat$auto_qc_properpair_rate <- factor(ifelse( dat$properpair_rate > .80,ifelse(dat$properpair_rate > .90,"PASS","WARNING"),"FAIL"), qc_levels)
+dat$auto_qc_indel_ratio <- factor(ifelse( ((dat$indel_ratio > 1.105) + (dat$indel_ratio < 0.450)) > 0, "FAIL", ifelse(((dat$indel_ratio > 0.825) + (dat$indel_ratio < 0.675)) > 0, "WARNING", "PASS")), qc_levels)
+
+dat$auto_qc_high_iqr_fwd <- factor(ifelse( dat$quality.dropoff.fwd.high.iqr.max.contiguous.read.cycles. < 50,ifelse(dat$quality.dropoff.fwd.high.iqr.max.contiguous.read.cycles. < 30,"PASS","WARNING"),"FAIL"), qc_levels)
+dat$auto_qc_high_iqr_rev <- factor(ifelse( dat$quality.dropoff.rev.high.iqr.max.contiguous.read.cycles. < 50,ifelse(dat$quality.dropoff.rev.high.iqr.max.contiguous.read.cycles. < 30,"PASS","WARNING"),"FAIL"), qc_levels)
+
+dat$auto_qc_a_total_dev <- factor(ifelse(dat$A.percent.total.mean.baseline.deviation. > 1.5, "FAIL", ifelse(dat$A.percent.total.mean.baseline.deviation. > 0.5,"WARNING","PASS")), qc_levels)
+dat$auto_qc_c_total_dev <- factor(ifelse(dat$C.percent.total.mean.baseline.deviation. > 1.5, "FAIL", ifelse(dat$C.percent.total.mean.baseline.deviation. > 0.5,"WARNING","PASS")), qc_levels)
+dat$auto_qc_g_total_dev <- factor(ifelse(dat$G.percent.total.mean.baseline.deviation. > 1.5, "FAIL", ifelse(dat$G.percent.total.mean.baseline.deviation. > 0.5,"WARNING","PASS")), qc_levels)
+dat$auto_qc_t_total_dev <- factor(ifelse(dat$T.percent.total.mean.baseline.deviation. > 1.5, "FAIL", ifelse(dat$T.percent.total.mean.baseline.deviation. > 0.5,"WARNING","PASS")), qc_levels)
+
+dat$auto_qc_a_max_dev <- factor(ifelse(dat$A.percent.max.baseline.deviation. > 15, "FAIL", ifelse(dat$A.percent.max.baseline.deviation. > 5,"WARNING","PASS")), qc_levels)
+dat$auto_qc_c_max_dev <- factor(ifelse(dat$C.percent.max.baseline.deviation. > 15, "FAIL", ifelse(dat$C.percent.max.baseline.deviation. > 5,"WARNING","PASS")), qc_levels)
+dat$auto_qc_g_max_dev <- factor(ifelse(dat$G.percent.max.baseline.deviation. > 15, "FAIL", ifelse(dat$G.percent.max.baseline.deviation. > 5,"WARNING","PASS")), qc_levels)
+dat$auto_qc_t_max_dev <- factor(ifelse(dat$T.percent.max.baseline.deviation. > 15, "FAIL", ifelse(dat$T.percent.max.baseline.deviation. > 5,"WARNING","PASS")), qc_levels)
+
+
+dat$auto_qc <- factor(ifelse(
 (
-(dat$auto_qc_error_rate == "FAIL") + 
+(dat$auto_qc_error_rate == "FAIL") +
 (dat$auto_qc_dup_rate == "FAIL") +
 (dat$auto_qc_map_rate == "FAIL") +
 (dat$auto_qc_properpair_rate == "FAIL") +
-(dat$auto_qc_indel_ratio == "FAIL") 
+(dat$auto_qc_indel_ratio == "FAIL") +
+(dat$auto_qc_high_iqr_fwd == "FAIL") +
+(dat$auto_qc_high_iqr_rev == "FAIL") +
+(dat$auto_qc_a_total_dev == "FAIL") +
+(dat$auto_qc_c_total_dev == "FAIL") +
+(dat$auto_qc_g_total_dev == "FAIL") +
+(dat$auto_qc_t_total_dev == "FAIL") +
+(dat$auto_qc_a_max_dev == "FAIL") +
+(dat$auto_qc_c_max_dev == "FAIL") +
+(dat$auto_qc_g_max_dev == "FAIL") +
+(dat$auto_qc_t_max_dev == "FAIL")
 )
 > 0, "FAIL", ifelse(
 (
@@ -124,14 +153,24 @@ dat$auto_qc <- ifelse(
 (dat$auto_qc_dup_rate == "WARNING") +
 (dat$auto_qc_map_rate == "WARNING") +
 (dat$auto_qc_properpair_rate == "WARNING") +
-(dat$auto_qc_indel_ratio == "WARNING") 
+(dat$auto_qc_indel_ratio == "WARNING") +
+(dat$auto_qc_high_iqr_fwd == "WARNING") +
+(dat$auto_qc_high_iqr_rev == "WARNING") +
+(dat$auto_qc_a_total_dev == "WARNING") +
+(dat$auto_qc_c_total_dev == "WARNING") +
+(dat$auto_qc_g_total_dev == "WARNING") +
+(dat$auto_qc_t_total_dev == "WARNING") +
+(dat$auto_qc_a_max_dev == "WARNING") +
+(dat$auto_qc_c_max_dev == "WARNING") +
+(dat$auto_qc_g_max_dev == "WARNING") +
+(dat$auto_qc_t_max_dev == "WARNING")
 )
- > 0, "WARNING","PASS"))
+ > 0, "WARNING","PASS")), qc_levels)
 summary(dat)
 
-summary(as.factor(dat$auto_qc))
-summary(as.factor(dat$auto_qc_error_rate))
-summary(as.factor(dat$auto_qc_dup_rate))
-summary(as.factor(dat$auto_qc_map_rate))
-summary(as.factor(dat$auto_qc_properpair_rate))
-summary(as.factor(dat$auto_qc_indel_ratio))
+#summary(as.factor(dat$auto_qc))
+#summary(as.factor(dat$auto_qc_error_rate))
+#summary(as.factor(dat$auto_qc_dup_rate))
+#summary(as.factor(dat$auto_qc_map_rate))
+#summary(as.factor(dat$auto_qc_properpair_rate))
+#summary(as.factor(dat$auto_qc_indel_ratio))
