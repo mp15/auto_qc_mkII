@@ -32,6 +32,16 @@ load_stat <- function(lanelet_file)
     extract <-dcast(bamcheck$data$SN, lanelet~variable)
     insdel <- cbind(sum(bamcheck$data$ID['insertion.count']),sum(bamcheck$data$ID['deletion.count']))
     colnames(insdel) <- c('insertion.count','deletion.count')
+    
+    if (nrow(bamcheck$data$RL) == 1) {
+        read_len <-bamcheck$data$RL$read.length[1] * 2
+        less_than <- sum((bamcheck$data$IS[read_len > bamcheck$data$IS$insert.size,]$total.pair.count * read_len) - bamcheck$data$IS[read_len > bamcheck$data$IS$insert.size,]$insert.size)
+        greater_than <- sum(bamcheck$data$IS[read_len <= bamcheck$data$IS$insert.size,]$total.pair.count * read_len)
+        overlap_dup_base_pct <-less_than / (less_than+greater_than)
+    } else { overlap_dup_base_pct <- NA }
+    
+    #max(bamcheck$data$IS[-1,]$insert.size)
+    #part of insert size peak check
 
     cbind(extract[,c(
     'sequences:',
@@ -92,7 +102,7 @@ load_stat <- function(lanelet_file)
     'C.percent.total.mean.baseline.deviation:',
     'G.percent.total.mean.baseline.deviation:',
     'T.percent.total.mean.baseline.deviation:'
-    )],insdel)
+    )],insdel, overlap_dup_base_pct)
 }
 
 args <- commandArgs(TRUE)
@@ -109,11 +119,44 @@ dat$map_rate <- dat$reads.mapped. / dat$sequences.
 dat$properpair_rate <- dat$reads.properly.paired. / dat$sequences.
 dat$indel_ratio <-dat$insertion.count / dat$deletion.count
 dat$map_minus_dup_coverage <- ( (dat$reads.mapped. - dat$reads.duplicated.) * 151 ) / 3000000000
+
+
 dat$auto_qc_error_rate <- factor(ifelse( dat$error.rate. < 0.02,ifelse(dat$error.rate. < 0.01,"PASS","WARNING"),"FAIL"), qc_levels)
 dat$auto_qc_dup_rate <- factor(ifelse( dat$dup_rate < .20,ifelse(dat$dup_rate < .15,"PASS","WARNING"),"FAIL"), qc_levels)
 dat$auto_qc_map_rate <- factor(ifelse( dat$map_rate > .90,ifelse(dat$map_rate > .95,"PASS","WARNING"),"FAIL"), qc_levels)
 dat$auto_qc_properpair_rate <- factor(ifelse( dat$properpair_rate > .80,ifelse(dat$properpair_rate > .90,"PASS","WARNING"),"FAIL"), qc_levels)
 dat$auto_qc_indel_ratio <- factor(ifelse( ((dat$indel_ratio > 1.105) + (dat$indel_ratio < 0.450)) > 0, "FAIL", ifelse(((dat$indel_ratio > 0.825) + (dat$indel_ratio < 0.675)) > 0, "WARNING", "PASS")), qc_levels)
+dat$auto_qc_overlap_dup_base_pct <- factor(ifelse( dat$overlap_dup_base_pct < 0.08,ifelse(dat$overlap_dup_base_pct < 0.04,"PASS","WARNING"),"FAIL"), qc_levels)
+
+#dat$auto_qc_insert_peak This is complex todo
+
+dat$auto_qc_indel_percentage_deviation <-factor(ifelse((
+(dat$fwd.percent.insertions.above.baseline. > 10) +
+(dat$fwd.percent.insertions.below.baseline. > 10) +
+(dat$fwd.percent.deletions.above.baseline. > 10) +
+(dat$fwd.percent.deletions.below.baseline. > 10) +
+(dat$rev.percent.insertions.above.baseline. > 10) +
+(dat$rev.percent.insertions.below.baseline. > 10) +
+(dat$rev.percent.deletions.above.baseline. > 10) +
+(dat$rev.percent.deletions.below.baseline. > 10) > 0), "FAIL", ifelse((
+(dat$fwd.percent.insertions.above.baseline. > 2) +
+(dat$fwd.percent.insertions.below.baseline. > 2) +
+(dat$fwd.percent.deletions.above.baseline. > 2) +
+(dat$fwd.percent.deletions.below.baseline. > 2) +
+(dat$rev.percent.insertions.above.baseline. > 2) +
+(dat$rev.percent.insertions.below.baseline. > 2) +
+(dat$rev.percent.deletions.above.baseline. > 2) +
+(dat$rev.percent.deletions.below.baseline. > 2) > 0), "WARNING", "PASS")), qc_levels)
+
+dat$auto_qc_qual_contig_cycle_dropoff_cycles <-factor(ifelse((
+((dat$quality.dropoff.fwd.mean.runmed.decline.max.contiguous.read.cycles. > 30) +
+(dat$quality.dropoff.fwd.mean.runmed.decline.low.value. < 25) == 2) +
+((dat$quality.dropoff.rev.mean.runmed.decline.max.contiguous.read.cycles. > 30) +
+(dat$quality.dropoff.rev.mean.runmed.decline.low.value. < 25) == 2) ) > 0, "FAIL", ifelse((
+((dat$quality.dropoff.fwd.mean.runmed.decline.max.contiguous.read.cycles. > 20) +
+(dat$quality.dropoff.fwd.mean.runmed.decline.low.value. < 25) == 2) +
+((dat$quality.dropoff.rev.mean.runmed.decline.max.contiguous.read.cycles. > 20) +
+(dat$quality.dropoff.rev.mean.runmed.decline.low.value. < 25) == 2) ) > 0, "WARNING", "PASS")), qc_levels)
 
 dat$auto_qc_high_iqr_fwd <- factor(ifelse( dat$quality.dropoff.fwd.high.iqr.max.contiguous.read.cycles. < 50,ifelse(dat$quality.dropoff.fwd.high.iqr.max.contiguous.read.cycles. < 30,"PASS","WARNING"),"FAIL"), qc_levels)
 dat$auto_qc_high_iqr_rev <- factor(ifelse( dat$quality.dropoff.rev.high.iqr.max.contiguous.read.cycles. < 50,ifelse(dat$quality.dropoff.rev.high.iqr.max.contiguous.read.cycles. < 30,"PASS","WARNING"),"FAIL"), qc_levels)
@@ -136,6 +179,9 @@ dat$auto_qc <- factor(ifelse(
 (dat$auto_qc_map_rate == "FAIL") +
 (dat$auto_qc_properpair_rate == "FAIL") +
 (dat$auto_qc_indel_ratio == "FAIL") +
+(dat$auto_qc_overlap_dup_base_pct == "FAIL") +
+(dat$auto_qc_indel_percentage_deviation == "FAIL") +
+(dat$auto_qc_qual_contig_cycle_dropoff_cycles == "FAIL") +
 (dat$auto_qc_high_iqr_fwd == "FAIL") +
 (dat$auto_qc_high_iqr_rev == "FAIL") +
 (dat$auto_qc_a_total_dev == "FAIL") +
@@ -154,6 +200,9 @@ dat$auto_qc <- factor(ifelse(
 (dat$auto_qc_map_rate == "WARNING") +
 (dat$auto_qc_properpair_rate == "WARNING") +
 (dat$auto_qc_indel_ratio == "WARNING") +
+(dat$auto_qc_overlap_dup_base_pct == "WARNING") +
+(dat$auto_qc_indel_percentage_deviation == "WARNING") +
+(dat$auto_qc_qual_contig_cycle_dropoff_cycles == "WARNING") +
 (dat$auto_qc_high_iqr_fwd == "WARNING") +
 (dat$auto_qc_high_iqr_rev == "WARNING") +
 (dat$auto_qc_a_total_dev == "WARNING") +
