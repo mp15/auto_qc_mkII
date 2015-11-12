@@ -40,7 +40,12 @@ load_stat <- function(lanelet_file)
         overlap_dup_base_pct <-less_than / (less_than+greater_than)
     } else { overlap_dup_base_pct <- NA }
     
-    #max(bamcheck$data$IS[-1,]$insert.size)
+    is <- bamcheck$data$IS$insert.size[-1]
+    length(is) <- length(is) - 1
+    is_count <- bamcheck$data$IS$total.pair.count[-1]
+    length(is_count) <- length(is_count) - 1
+    is_mode <- is[is_count == max(is_count)]
+    insert_peak <- sum(is_count[((is > (is_mode-25)) + (is < is_mode+25) == 2)]) / sum(is_count)
     #part of insert size peak check
 
     cbind(extract[,c(
@@ -102,7 +107,7 @@ load_stat <- function(lanelet_file)
     'C.percent.total.mean.baseline.deviation:',
     'G.percent.total.mean.baseline.deviation:',
     'T.percent.total.mean.baseline.deviation:'
-    )],insdel, overlap_dup_base_pct)
+    )],insdel, overlap_dup_base_pct,insert_peak)
 }
 
 args <- commandArgs(TRUE)
@@ -128,7 +133,7 @@ dat$auto_qc_properpair_rate <- factor(ifelse( dat$properpair_rate > .80,ifelse(d
 dat$auto_qc_indel_ratio <- factor(ifelse( ((dat$indel_ratio > 1.105) + (dat$indel_ratio < 0.450)) > 0, "FAIL", ifelse(((dat$indel_ratio > 0.825) + (dat$indel_ratio < 0.675)) > 0, "WARNING", "PASS")), qc_levels)
 dat$auto_qc_overlap_dup_base_pct <- factor(ifelse( dat$overlap_dup_base_pct < 0.08,ifelse(dat$overlap_dup_base_pct < 0.04,"PASS","WARNING"),"FAIL"), qc_levels)
 
-#dat$auto_qc_insert_peak This is complex todo
+dat$auto_qc_insert_peak <- factor(ifelse( dat$insert_peak > .80, "PASS" ,"FAIL"), qc_levels)
 
 dat$auto_qc_indel_percentage_deviation <-factor(ifelse((
 (dat$fwd.percent.insertions.above.baseline. > 10) +
@@ -180,6 +185,7 @@ dat$auto_qc <- factor(ifelse(
 (dat$auto_qc_properpair_rate == "FAIL") +
 (dat$auto_qc_indel_ratio == "FAIL") +
 (dat$auto_qc_overlap_dup_base_pct == "FAIL") +
+(dat$auto_qc_insert_peak == "FAIL") +
 (dat$auto_qc_indel_percentage_deviation == "FAIL") +
 (dat$auto_qc_qual_contig_cycle_dropoff_cycles == "FAIL") +
 (dat$auto_qc_high_iqr_fwd == "FAIL") +
@@ -201,6 +207,7 @@ dat$auto_qc <- factor(ifelse(
 (dat$auto_qc_properpair_rate == "WARNING") +
 (dat$auto_qc_indel_ratio == "WARNING") +
 (dat$auto_qc_overlap_dup_base_pct == "WARNING") +
+(dat$auto_qc_insert_peak == "WARNING") +
 (dat$auto_qc_indel_percentage_deviation == "WARNING") +
 (dat$auto_qc_qual_contig_cycle_dropoff_cycles == "WARNING") +
 (dat$auto_qc_high_iqr_fwd == "WARNING") +
